@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-gnuc-streamlit = "gnuc_streamlit.expense:main"
+gnuc-streamlit = "gnuc_streamlit._cli:main"
 
 [project.urls]
 "Homepage" = "https://github.com/isados/gnuc-streamlit"
