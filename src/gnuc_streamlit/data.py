@@ -83,11 +83,11 @@ def create_sublevels_of_accounts(df):
 def convert_sub_levels_to_account_name(row, sub_level):
     path_parts = []
     for num in range(sub_level+1):
-
         path = row[f'level{num}_account_name']
         if not path: continue
         path_parts.append(path)
-    return ":".join(path_parts)
+    return path_parts[-1]
+    # return ":".join(path_parts)
 
 
 if __name__ == "__main__":

@@ -39,28 +39,26 @@ def main():
     left_col.title('Finances Overview :dollar:')
     right_col.subheader('Streamlit App by [Isa AlDoseri](https://www.linkedin.com/in/isadoseri/)')
 
-    st.markdown('##')
 
+    # Get Data
     df, sublevels = get_expenses()
 
 
-
-    # --- SIDEBARD --- #
-    # FILTERING
+    # --- SIDEBARD & Filtering --- #
     st.sidebar.header('Filter here:')
     sel_sublevel = st.sidebar.select_slider('Sub Levels',
                                         options=range(sublevels),
                                         value=1)
     period = st.sidebar.radio('Period:',
                               options=time_period_to_dtvalues.keys())
-    expense_type = st.sidebar.multiselect('Expense Types:',
-                                options=df['Account'].unique())
     start_date, end_date = time_period_to_dtvalues[period]()
-
     df_selection = df.query(
         'Date <= @end_date '
         'and Date >= @start_date').copy()
+
     df_selection.loc[:, 'Account'] = df_selection.apply(convert_sub_levels_to_account_name, args=[sel_sublevel,], axis=1)
+    expense_type = st.sidebar.multiselect('Expense Types:',
+                                options=df_selection['Account'].unique())
     if expense_type:
         df_selection = df_selection[df_selection.Account.isin(expense_type)]
 
@@ -71,9 +69,7 @@ def main():
     # TOP PAGE 
     budget = st.number_input('Budget (default is 300)', value=300)
 
-
     left_column, right_column = st.columns(2)
-
     with left_column:
         total = df_selection.Amount.sum()
         savings = budget-total
@@ -83,7 +79,6 @@ def main():
             f"BHD {total:.2f}",
             f"{savings:.2f} {under_or_over_budget} in Savings",
         )
-
     with right_column:
         st.metric(
             'Number of Txns',
@@ -147,11 +142,9 @@ def main():
 
     # --- COMBINING ALL CHARTS ABOVE --- #
     left_column, right_column = st.columns(2)
-    # left_column.plotly_chart(fig_expenses_by_day, use_container_width=True)
     st.plotly_chart(fig_expenses_by_week, use_container_width=True)
     st.plotly_chart(fig_expenses_by_day, use_container_width=True)
     st.plotly_chart(fig_split_up_expenses, use_container_width=True)
-    # right_column.plotly_chart(fig_hourly_sales, use_container_width=True)
 
 
     # --- HIDE STREAMLIT STYLE --- #
