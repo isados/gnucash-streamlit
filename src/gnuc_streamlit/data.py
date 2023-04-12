@@ -63,16 +63,10 @@ def get_expenses():
 
 def _split_account_name_into_sublevels(full_account_name, max_levels):
     path_parts = full_account_name.split(':')
-    level_names = []
-    
-    for i in range(len(path_parts)):
-        level_names.append(':'.join(path_parts[0:i+1]))
-
-    number_of_levels = len(level_names)
-    remaining_levels_to_pad = max_levels - number_of_levels
-    LAST_LEVEL = level_names[-1]
-    level_names.extend([LAST_LEVEL]*remaining_levels_to_pad)
-    return level_names
+    depth_of_path = len(path_parts)
+    padding_none_length = max_levels - depth_of_path
+    path_parts += [None] * padding_none_length
+    return path_parts
 
 def create_sublevels_of_accounts(df):
     df = df.copy()
@@ -86,11 +80,21 @@ def create_sublevels_of_accounts(df):
         .to_list()
     return df, MAX_LEVELS
     
+def convert_sub_levels_to_account_name(row, sub_level):
+    path_parts = []
+    for num in range(sub_level+1):
+
+        path = row[f'level{num}_account_name']
+        if not path: continue
+        path_parts.append(path)
+    return ":".join(path_parts)
 
 
 if __name__ == "__main__":
     # print(_split_account_name_into_sublevels('Exp:Full:Hello', 4))
     df, max_levels = get_expenses()
+    accounts = df[['level0_account_name',  'level1_account_name', 'level2_account_name',  'level3_account_name', ]]
+    accounts.sort_values(list(accounts.columns)).drop_duplicates().to_csv('account.csv', index=False)
     df.to_csv('out.csv', index=False)
     print(df)
 

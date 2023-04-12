@@ -1,10 +1,25 @@
 """Reporting Module"""
+###########################################################################################################
+###########################################################################################################
+###########################################################################################################
+######## author = Isa AlDoseri
+######## website = https://www.linkedin.com/in/isadoseri/
+######## version = 1.0
+######## status = WIP
+######## deployed at = 
+######## layout inspired by https://share.streamlit.io/tylerjrichards/streamlit_goodreads_app/books.py
+###########################################################################################################
+###########################################################################################################
+###########################################################################################################
+
 
 import streamlit as st
 from functools import partial
 import plotly.express as px
+import pandas as pd
+import numpy as np
 
-from gnuc_streamlit.data import get_expenses
+from gnuc_streamlit.data import get_expenses, convert_sub_levels_to_account_name
 from gnuc_streamlit.core import dateutils
 
 
@@ -20,8 +35,10 @@ def main():
     st.set_page_config(page_title='Finances',
                     page_icon=':bar_chart:',
                     layout='wide')
+    left_col, right_col = st.columns((2/3, 1/3))
+    left_col.title('Finances Overview :dollar:')
+    right_col.subheader('Streamlit App by [Isa AlDoseri](https://www.linkedin.com/in/isadoseri/)')
 
-    st.title(':bar_chart: Finances')
     st.markdown('##')
 
     df, sublevels = get_expenses()
@@ -29,6 +46,7 @@ def main():
 
 
     # --- SIDEBARD --- #
+    # FILTERING
     st.sidebar.header('Filter here:')
     sel_sublevel = st.sidebar.select_slider('Sub Levels',
                                         options=range(sublevels),
@@ -37,77 +55,70 @@ def main():
                               options=time_period_to_dtvalues.keys())
     expense_type = st.sidebar.multiselect('Expense Types:',
                                 options=df['Account'].unique())
-
-
-    # FILTERING
     start_date, end_date = time_period_to_dtvalues[period]()
 
     df_selection = df.query(
         'Date <= @end_date '
         'and Date >= @start_date').copy()
-    df_selection.loc[:, 'Account'] = df_selection.loc[:, f'level{sel_sublevel}_account_name']
+    df_selection.loc[:, 'Account'] = df_selection.apply(convert_sub_levels_to_account_name, args=[sel_sublevel,], axis=1)
     if expense_type:
         df_selection = df_selection[df_selection.Account.isin(expense_type)]
 
 
 
 
-
-    # TOP KPIs
-    num_trxns = df_selection.shape[0]
-    expenses_total = round(df_selection.Amount.sum(), 3)
-    high_expense = df_selection\
-                    .sort_values('Amount', ascending=False)\
-                    .iloc[0] if num_trxns else None
     
-    
+    # TOP PAGE 
+    budget = st.number_input('Budget (default is 300)', value=300)
 
 
-    left_column, middle_column, right_column = st.columns(3)
+    left_column, right_column = st.columns(2)
 
     with left_column:
-        st.subheader(f'{period} Expenses')
-        st.subheader(f'BHD {expenses_total}')
+        total = df_selection.Amount.sum()
+        savings = budget-total
+        under_or_over_budget = 'More' if savings > 0 else 'Less'
+        st.metric(
+            'Total Expenses',
+            f"BHD {total:.2f}",
+            f"{savings:.2f} {under_or_over_budget} in Savings",
+        )
 
-    with middle_column:
-        st.subheader('# Transactions')
-        st.subheader(num_trxns)
-        # st.subheader(':star:' * int(89) + str(89))
+    with right_column:
+        st.metric(
+            'Number of Txns',
+            df_selection.shape[0],
+        )
 
-    if num_trxns:
-        with right_column:
-            st.subheader('Highest Expense')
-            st.text(f'{high_expense.FullAccountName}')
-            st.text(f'{high_expense.Desc}')
-            st.subheader(f'BHD {high_expense.Amount}')
 
-    # st.dataframe(df_selection)
-
-    # --- SALES BY PRODUCT LINE [BAR] --- #
-    # sales_by_product_line = df_selection\
-    #     .groupby('Product line')\
-    #     .sum(numeric_only=True)[['Total']]\
-    #     .sort_values('Total')
-    # fig_product_sales = px.bar(
-    #     sales_by_product_line,
-    #     x='Total',
-    #     y=sales_by_product_line.index,
-    #     orientation='h',
-    #     title='<b>Sales by Product Line</b>',
-    #     color_discrete_sequence=['#0083BB'] * len(sales_by_product_line),
-    #     template='plotly_white',
-    # )
     # fig_product_sales.update_layout(
     #     plot_bgcolor='rgba(0,0,0,0)',
     #     xaxis=(dict(showgrid=False)),
     # )
 
-    # --- SALES BY HOuR [BAR] --- #
+    
+
+    # --- EXPENSES BY WEEK ---- #
+    expenses_by_week = df_selection\
+        .groupby([pd.Grouper(key='Date', freq='W'), 'Account'])\
+        .sum(numeric_only=True)[['Amount']]\
+        .reset_index()
+    fig_expenses_by_week = px.bar(
+        expenses_by_week,
+        y='Amount',
+        x=expenses_by_week.Date,
+        color='Account',
+        title='<b>Expenses By Week</b>',
+    #     orientation='h',
+        # color_discrete_sequence=['#0083B8'] * len(expenses_by_day),
+        template='plotly_white',
+    )
+
+    # --- EXPENSES BY DAY [BAR] --- #
     expenses_by_day = df_selection\
         .groupby(['Date', 'Account'])\
         .sum(numeric_only=True)[['Amount']]\
         .reset_index()
-        # .sort_values('Total')
     fig_expenses_by_day = px.bar(
         expenses_by_day,
         y='Amount',
@@ -121,25 +132,23 @@ def main():
         xaxis=dict(tickmode='linear'),
         yaxis=dict(showgrid=False)
     )
-    # st.dataframe(df_selection)
-    
-    data = dict(
-    character=["Eve", "Cain", "Seth", "Enos", "Noam", "Abel", "Awan", "Enoch", "Azura"],
-    parent=["", "Eve", "Eve", "Seth", "Seth", "Eve", "Eve", "Awan", "Eve" ],
-    value=[10, 14, 12, 10, 2, 6, 6, 4, 4])
 
+    # --- SUNBURST SPLIT UP OF EXPENSES
+    lvl_cols_selected = [f'level{i}_account_name' for i in range(sel_sublevel+1)]
+    df_sunburst = df_selection\
+        .groupby(lvl_cols_selected, dropna=False)['Amount']\
+        .sum()\
+        .reset_index()
     fig_split_up_expenses = px.sunburst(
-        df_selection,
-        path=[f'level{i}_account_name' for i in range(0,sublevels)],
+        df_sunburst,
+        path=lvl_cols_selected,
         values='Amount',
-        color='Account',
     )
-
-
 
     # --- COMBINING ALL CHARTS ABOVE --- #
     left_column, right_column = st.columns(2)
     # left_column.plotly_chart(fig_expenses_by_day, use_container_width=True)
+    st.plotly_chart(fig_expenses_by_week, use_container_width=True)
     st.plotly_chart(fig_expenses_by_day, use_container_width=True)
     st.plotly_chart(fig_split_up_expenses, use_container_width=True)
     # right_column.plotly_chart(fig_hourly_sales, use_container_width=True)
